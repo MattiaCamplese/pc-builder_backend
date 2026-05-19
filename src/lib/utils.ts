@@ -25,3 +25,5 @@ export function generateJwt(email: string) {
 export function generateToken() {
     return crypto.randomBytes(32).toString("hex"); // 64 char hex, sicuro e url-safe
 }
+
+//rQb$5F%f$Rm!njSa//
