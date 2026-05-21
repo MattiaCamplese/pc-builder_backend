@@ -10,6 +10,7 @@ import * as relations from "../db/relations.js";
 import { authMiddleware, type AuthContext } from "../middleware/auth.middleware.js";
 import { adminOnly } from "../middleware/role.middleware.js";
 import { DatabaseError } from "@neondatabase/serverless";
+import bcrypt from "bcrypt";
 import { querySchema, withSchema } from "../lib/validations.js";
 
 const userRoute = new Hono<AuthContext>().basePath('users');
@@ -43,12 +44,12 @@ const findSchema = querySchema(
     with: withSchema(relations, "user")
   }).strict()
 )
-userRoute.get('/:id', zValidator("query", findSchema), async (c) => {
+userRoute.get('/:email', zValidator("query", findSchema), async (c) => {
   try {
-    const { id } = c.req.param();
+    const { email } = c.req.param();
     const { with: withQuery } = c.req.valid("query");
     const found = await db.query.user.findFirst({
-      where: (fields, { eq }) => eq(fields.id, id),
+      where: (fields, { eq }) => eq(fields.email, email),
       with: withQuery as any
     });
     if (!found) {
@@ -63,7 +64,12 @@ userRoute.get('/:id', zValidator("query", findSchema), async (c) => {
   }
 })
 
-userRoute.post('/', zValidator("json", createInsertSchema(user).array()), async (c) => {
+const adminCreateUserSchema = createInsertSchema(user, {
+  email: z.email().transform(v => v.toLowerCase()),
+  password: z.string().min(8).transform(v => bcrypt.hashSync(v, 10)),
+});
+
+userRoute.post('/', zValidator("json", adminCreateUserSchema), async (c) => {
   try {
     const data = c.req.valid("json");
     const newUser = await db.insert(user).values(data).returning();

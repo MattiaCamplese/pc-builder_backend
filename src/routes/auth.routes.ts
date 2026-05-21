@@ -55,7 +55,7 @@ authRoute.post("/login", zValidator("json", loginSchema), async (c) => {
 authRoute.get("/me", authMiddleware(), async (c) => {
     const user = c.get("authUser");
     return c.json(userOmits(user));
-});
+})
 
 const registerSchema = createInsertSchema(user, {
     email: z.email().transform((v) => v.toLowerCase()),
