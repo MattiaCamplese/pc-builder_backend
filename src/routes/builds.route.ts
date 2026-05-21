@@ -56,7 +56,7 @@ buildsRoute.get("/:id", auth, async (c) => {
     return c.json(found);
 });
 
-buildsRoute.post("/", zValidator("json", buildBodySchema), async (c) => {
+buildsRoute.post("/", auth, zValidator("json", buildBodySchema), async (c) => {
     const userId = c.get("authUser").id;
     const { storageIds, ...data } = c.req.valid("json");
 
@@ -68,7 +68,7 @@ buildsRoute.post("/", zValidator("json", buildBodySchema), async (c) => {
     return c.json(newBuild, 201);
 });
 
-buildsRoute.put("/:id", zValidator("json", buildBodySchema), async (c) => {
+buildsRoute.put("/:id", auth, zValidator("json", buildBodySchema), async (c) => {
     const userId = c.get("authUser").id;
     const id = +c.req.param("id");
     const { storageIds, ...data } = c.req.valid("json");
@@ -84,7 +84,7 @@ buildsRoute.put("/:id", zValidator("json", buildBodySchema), async (c) => {
     return c.json(updated);
 });
 
-buildsRoute.delete("/:id", async (c) => {
+buildsRoute.delete("/:id", auth, async (c) => {
     const userId = c.get("authUser").id;
     const [deleted] = await db.delete(build).where(eq(build.id, +c.req.param("id"))).returning();
     if (!deleted || deleted.userId !== userId) throw new HTTPException(404, { message: "Build non trovata" });
