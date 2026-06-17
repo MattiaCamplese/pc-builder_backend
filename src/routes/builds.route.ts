@@ -86,7 +86,8 @@ buildsRoute.put("/:id", auth, zValidator("json", buildBodySchema), async (c) => 
 
 buildsRoute.delete("/:id", auth, async (c) => {
     const userId = c.get("authUser").id;
-    const [deleted] = await db.delete(build).where(eq(build.id, +c.req.param("id"))).returning();
+    const id = +c.req.param("id")!;
+    const [deleted] = await db.delete(build).where(eq(build.id, id)).returning();
     if (!deleted || deleted.userId !== userId) throw new HTTPException(404, { message: "Build non trovata" });
     return c.json({ id: deleted.id });
 });
