@@ -46,6 +46,16 @@ buildsRoute.get("/", auth, async (c) => {
     return c.json(builds);
 });
 
+buildsRoute.get("/shared/:id", async (c) => {
+    const id = +c.req.param("id")!;
+    const found = await db.query.build.findFirst({
+        where: (f, { eq }) => eq(f.id, id),
+        with: { cpu: true, motherboard: true, gpu: true, ram: true, case: true, psu: true, cooler: true, storages: { with: { storage: true } } },
+    });
+    if (!found) throw new HTTPException(404, { message: "Build non trovata" });
+    return c.json(found);
+});
+
 buildsRoute.get("/:id", auth, async (c) => {
     const id = +c.req.param("id")!;
     const found = await db.query.build.findFirst({

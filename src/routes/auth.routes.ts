@@ -214,7 +214,8 @@ authRoute.post("/send-password-recovery", zValidator("json", resendPasswordRecov
     }
 
     const token = generateToken(); // token in chiaro da mandare nel link
-    const resetLink = `http://localhost:5173/password-recovery?token=${token}&email=${encodeURIComponent(email)}`;
+    const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:5173";
+    const resetLink = `${frontendUrl}/password-recovery?token=${token}&email=${encodeURIComponent(email)}`;
 
     await emailSend({
         email,
@@ -296,5 +297,78 @@ authRoute.post( "password-recovery", zValidator("json", passwordRecoverySchema),
         return c.json({ message: "Password modificata" });
     },
 );
+
+const updateProfileSchema = z.object({
+    firstName: z.string().min(1),
+    lastName: z.string().min(1),
+});
+
+authRoute.put("/profile", authMiddleware(), zValidator("json", updateProfileSchema), async (c) => {
+    const authUser = c.get("authUser");
+    const { firstName, lastName } = c.req.valid("json");
+
+    const queryResult = await db
+        .update(user)
+        .set({ firstName, lastName })
+        .where(eq(user.id, authUser.id))
+        .returning();
+
+    return c.json({
+        message: "Profilo aggiornato",
+        user: userOmits(queryResult[0]),
+    });
+});
+
+const changePasswordSchema = z
+    .object({
+        currentPassword: z.string().min(1),
+        password: z
+            .string()
+            .min(8)
+            .regex(/[a-z]/g, { error: "Devi inserire almeno una minuscola" })
+            .regex(/[A-Z]/g, { error: "Devi inserire almeno una maiuscola" })
+            .regex(/[0-9]/g, { error: "Devi inserire almeno un numero" })
+            .regex(/[!$&=?]/g, { error: "Devi inserire almeno un simbolo tra ! $ & = ?" }),
+        passwordConfirmation: z.string().min(1),
+    })
+    .refine((data) => data.password === data.passwordConfirmation, {
+        message: "Password diverse!",
+        path: ["passwordConfirmation"],
+    });
+
+authRoute.put("/change-password", authMiddleware(), zValidator("json", changePasswordSchema), async (c) => {
+    const authUser = c.get("authUser");
+    const { currentPassword, password } = c.req.valid("json");
+
+    const validPassword = await bcrypt.compare(currentPassword, authUser.password);
+    if (!validPassword) {
+        throw new HTTPException(401, { message: "Password attuale non valida" });
+    }
+
+    await db
+        .update(user)
+        .set({ password: bcrypt.hashSync(password, 10) })
+        .where(eq(user.id, authUser.id));
+
+    return c.json({ message: "Password modificata" });
+});
+
+const deleteAccountSchema = z.object({
+    password: z.string().min(1),
+});
+
+authRoute.delete("/account", authMiddleware(), zValidator("json", deleteAccountSchema), async (c) => {
+    const authUser = c.get("authUser");
+    const { password } = c.req.valid("json");
+
+    const validPassword = await bcrypt.compare(password, authUser.password);
+    if (!validPassword) {
+        throw new HTTPException(401, { message: "Password non valida" });
+    }
+
+    await db.delete(user).where(eq(user.id, authUser.id));
+
+    return c.json({ message: "Account eliminato" });
+});
 
 export default authRoute;

@@ -56,6 +56,9 @@ componentsRoute.get("/:type/compatible", async (c) => {
     if (q.motherboardId) config.motherboard  = (await db.select().from(motherboards).where(eq(motherboards.id, +q.motherboardId)))[0];
     if (q.gpuId)         config.gpu          = (await db.select().from(gpus).where(eq(gpus.id, +q.gpuId)))[0];
     if (q.caseId)        config.case         = (await db.select().from(cases).where(eq(cases.id, +q.caseId)))[0];
+    if (q.ramId)         config.ram          = (await db.select().from(memory).where(eq(memory.id, +q.ramId)))[0];
+    if (q.psuId)         config.psu          = (await db.select().from(psus).where(eq(psus.id, +q.psuId)))[0];
+    if (q.coolerId)      config.cooler       = (await db.select().from(coolers).where(eq(coolers.id, +q.coolerId)))[0];
 
     const constraints = deriveConstraints(config);
     const typeKey = type === 'cpus' ? 'cpu' : type === 'motherboards' ? 'motherboard' : type === 'gpus' ? 'gpu'

@@ -21,36 +21,46 @@ export type BuildConfig = {
 };
 
 export type Constraints = {
-    motherboard?: { socket?: string };
+    cpu?: { socket?: string };
+    motherboard?: { socket?: string; ramType?: string; formFactor?: string };
     memory?: { type?: string };
-    case?: { formFactor?: string };
+    case?: { formFactor?: string; maxGpuLengthMm_gte?: number; psuFormFactor?: string };
     gpu?: { lengthMm_lte?: number };
     psu?: { formFactor?: string; wattageW_gte?: number };
     cooler?: { socketSupport?: string; maxTdpW_gte?: number };
 };
 
+// Constraints are derived symmetrically: whichever parts are already picked
+// narrow down every other slot, regardless of the order they were chosen in.
 export function deriveConstraints(config: BuildConfig): Constraints {
     const c: Constraints = {};
 
-    if (config.cpu) {
-        c.motherboard = { socket: config.cpu.socket };
-        c.cooler = {
-            socketSupport: config.cpu.socket,
-            maxTdpW_gte: config.cpu.tdpW ?? undefined,
-        };
-    }
+    // CPU ↔ Motherboard (socket)
+    if (config.cpu) c.motherboard = { ...c.motherboard, socket: config.cpu.socket };
+    if (config.motherboard) c.cpu = { ...c.cpu, socket: config.motherboard.socket };
 
-    if (config.motherboard) {
-        c.memory = { type: config.motherboard.ramType ?? undefined };
-        c.case = { formFactor: config.motherboard.formFactor };
-        c.cooler = { ...c.cooler, socketSupport: config.motherboard.socket };
-    }
+    // Motherboard ↔ RAM (type)
+    if (config.motherboard?.ramType) c.memory = { ...c.memory, type: config.motherboard.ramType };
+    if (config.ram) c.motherboard = { ...c.motherboard, ramType: config.ram.type };
 
-    if (config.case) {
-        c.gpu = { lengthMm_lte: config.case.maxGpuLengthMm ?? undefined };
-        c.psu = { formFactor: config.case.psuFormFactor ?? undefined };
-    }
+    // Motherboard ↔ Case (form factor)
+    if (config.motherboard) c.case = { ...c.case, formFactor: config.motherboard.formFactor };
+    if (config.case) c.motherboard = { ...c.motherboard, formFactor: config.case.formFactor };
 
+    // Case ↔ GPU (max length the case fits)
+    if (config.case?.maxGpuLengthMm != null) c.gpu = { ...c.gpu, lengthMm_lte: config.case.maxGpuLengthMm };
+    if (config.gpu?.lengthMm != null) c.case = { ...c.case, maxGpuLengthMm_gte: config.gpu.lengthMm };
+
+    // Case ↔ PSU (form factor)
+    if (config.case?.psuFormFactor) c.psu = { ...c.psu, formFactor: config.case.psuFormFactor };
+    if (config.psu) c.case = { ...c.case, psuFormFactor: config.psu.formFactor };
+
+    // CPU/Motherboard → Cooler (socket support + minimum TDP headroom)
+    const socket = config.cpu?.socket ?? config.motherboard?.socket;
+    if (socket) c.cooler = { ...c.cooler, socketSupport: socket.replace(/\s+/g, '') };
+    if (config.cpu?.tdpW != null) c.cooler = { ...c.cooler, maxTdpW_gte: config.cpu.tdpW };
+
+    // CPU + GPU → PSU (minimum wattage)
     if (config.cpu || config.gpu) {
         const cpuTdp = config.cpu?.tdpW ?? 0;
         const gpuTdp = config.gpu?.tdpW ?? 0;
@@ -73,7 +83,7 @@ export function validateBuild(config: BuildConfig): ValidationError[] {
     if (cpu && cooler) {
         if (cooler.maxTdpW && cpu.tdpW && cpu.tdpW > cooler.maxTdpW)
             errors.push({ field: 'cooler', message: `Cooler TDP insufficiente: CPU ${cpu.tdpW}W > Cooler max ${cooler.maxTdpW}W` });
-        if (cooler.socketSupport && cpu.socket && !cooler.socketSupport.includes(cpu.socket))
+        if (cooler.socketSupport && cpu.socket && !cooler.socketSupport.replace(/\s+/g, '').includes(cpu.socket.replace(/\s+/g, '')))
             errors.push({ field: 'cooler', message: `Cooler non supporta socket ${cpu.socket}` });
     }
 
